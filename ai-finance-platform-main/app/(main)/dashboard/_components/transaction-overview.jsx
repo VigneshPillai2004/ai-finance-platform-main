@@ -32,7 +32,7 @@ const COLORS = [
   "#9FA8DA",
 ];
 
-export function DashboardOverview({ accounts, transactions }) {
+export function DashboardOverview({ accounts, transactions, monthlyTotals }) {
   const [selectedAccountId, setSelectedAccountId] = useState(
     accounts.find((a) => a.isDefault)?.id || accounts[0]?.id
   );
@@ -47,29 +47,8 @@ export function DashboardOverview({ accounts, transactions }) {
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .slice(0, 5);
 
-  // Calculate expense breakdown for current month
-  const currentDate = new Date();
-  const currentMonthExpenses = accountTransactions.filter((t) => {
-    const transactionDate = new Date(t.date);
-    return (
-      t.type === "EXPENSE" &&
-      transactionDate.getMonth() === currentDate.getMonth() &&
-      transactionDate.getFullYear() === currentDate.getFullYear()
-    );
-  });
-
-  // Group expenses by category
-  const expensesByCategory = currentMonthExpenses.reduce((acc, transaction) => {
-    const category = transaction.category;
-    if (!acc[category]) {
-      acc[category] = 0;
-    }
-    acc[category] += transaction.amount;
-    return acc;
-  }, {});
-
   // Format data for pie chart
-  const pieChartData = Object.entries(expensesByCategory).map(
+  const pieChartData = Object.entries(monthlyTotals.expensesByCategory).map(
     ([category, amount]) => ({
       name: category,
       value: amount,
@@ -144,8 +123,50 @@ export function DashboardOverview({ accounts, transactions }) {
         </CardContent>
       </Card>
 
-      {/* Expense Breakdown Card */}
+      {/* Monthly Summary Card */}
       <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-normal">
+            Monthly Summary
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center text-green-500">
+                <ArrowUpRight className="mr-1 h-4 w-4" />
+                <span>Income</span>
+              </div>
+              <span className="font-medium">
+                ${monthlyTotals.totalIncome.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center text-red-500">
+                <ArrowDownRight className="mr-1 h-4 w-4" />
+                <span>Expenses</span>
+              </div>
+              <span className="font-medium">
+                ${monthlyTotals.totalExpenses.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center pt-2 border-t">
+              <span className="font-medium">Net</span>
+              <span className={cn(
+                "font-medium",
+                monthlyTotals.totalIncome - monthlyTotals.totalExpenses >= 0
+                  ? "text-green-500"
+                  : "text-red-500"
+              )}>
+                ${(monthlyTotals.totalIncome - monthlyTotals.totalExpenses).toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Expense Breakdown Card */}
+      <Card className="md:col-span-2">
         <CardHeader>
           <CardTitle className="text-base font-normal">
             Monthly Expense Breakdown

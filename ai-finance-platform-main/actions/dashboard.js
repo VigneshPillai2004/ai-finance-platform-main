@@ -147,11 +147,41 @@ export async function getDashboardData() {
     throw new Error("User not found");
   }
 
-  // Get all user transactions
+  // Get current month's start and end dates
+  const currentDate = new Date();
+  const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+  const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+
+  // Get all transactions for the current month
   const transactions = await db.transaction.findMany({
-    where: { userId: user.id },
+    where: { 
+      userId: user.id,
+      date: {
+        gte: startOfMonth,
+        lte: endOfMonth,
+      }
+    },
     orderBy: { date: "desc" },
   });
 
-  return transactions.map(serializeTransaction);
+  // Calculate monthly totals
+  const monthlyTotals = transactions.reduce((acc, t) => {
+    const amount = Number(t.amount);
+    if (t.type === "EXPENSE") {
+      acc.totalExpenses += amount;
+      acc.expensesByCategory[t.category] = (acc.expensesByCategory[t.category] || 0) + amount;
+    } else {
+      acc.totalIncome += amount;
+    }
+    return acc;
+  }, {
+    totalExpenses: 0,
+    totalIncome: 0,
+    expensesByCategory: {},
+  });
+
+  return {
+    transactions: transactions.map(serializeTransaction),
+    monthlyTotals,
+  };
 }

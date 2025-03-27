@@ -260,7 +260,7 @@ export const checkBudgetAlerts = inngest.createFunction(
 
         // Check if we should send an alert
         if (
-          percentageUsed >= 80 && // Default threshold of 80%
+          percentageUsed >= 70 && // Lower threshold to 70%
           (!budget.lastAlertSent ||
             isNewMonth(new Date(budget.lastAlertSent), new Date()))
         ) {
@@ -285,6 +285,90 @@ export const checkBudgetAlerts = inngest.createFunction(
             data: { lastAlertSent: new Date() },
           });
         }
+      });
+    }
+  }
+);
+
+// 4. Transaction Update Budget Alert
+export const transactionUpdateBudgetAlert = inngest.createFunction(
+  { name: "Transaction Update Budget Alert" },
+  { event: "transaction.updated" },
+  async ({ event, step }) => {
+    const transaction = event.data;
+    if (!transaction || transaction.type !== "EXPENSE") return;
+
+    const budget = await step.run("fetch-budget", async () => {
+      return await db.budget.findFirst({
+        where: {
+          userId: transaction.userId,
+        },
+        include: {
+          user: {
+            include: {
+              accounts: {
+                where: {
+                  isDefault: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    });
+
+    if (!budget) return;
+
+    const defaultAccount = budget.user.accounts[0];
+    if (!defaultAccount || defaultAccount.id !== transaction.accountId) return;
+
+    const startDate = new Date();
+    startDate.setDate(1); // Start of current month
+
+    // Calculate total expenses for the current month
+    const expenses = await db.transaction.aggregate({
+      where: {
+        userId: transaction.userId,
+        accountId: defaultAccount.id,
+        type: "EXPENSE",
+        date: {
+          gte: startDate,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    const totalExpenses = expenses._sum.amount ? Number(expenses._sum.amount) : 0;
+    const budgetAmount = budget.amount;
+    const percentageUsed = (totalExpenses / budgetAmount) * 100;
+
+    // Send alert if threshold is reached
+    if (
+      percentageUsed >= 70 && // Lower threshold to 70%
+      (!budget.lastAlertSent ||
+        isNewMonth(new Date(budget.lastAlertSent), new Date()))
+    ) {
+      await sendEmail({
+        to: budget.user.email,
+        subject: `Budget Alert for ${defaultAccount.name}`,
+        react: EmailTemplate({
+          userName: budget.user.name,
+          type: "budget-alert",
+          data: {
+            percentageUsed,
+            budgetAmount: parseInt(budgetAmount).toFixed(1),
+            totalExpenses: parseInt(totalExpenses).toFixed(1),
+            accountName: defaultAccount.name,
+          },
+        }),
+      });
+
+      // Update last alert sent
+      await db.budget.update({
+        where: { id: budget.id },
+        data: { lastAlertSent: new Date() },
       });
     }
   }

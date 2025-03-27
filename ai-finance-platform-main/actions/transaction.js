@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import aj from "@/lib/arcjet";
 import { request } from "@arcjet/next";
+import { inngest } from "@/lib/inngest/client";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -96,6 +97,17 @@ export async function createTransaction(data) {
 
       return newTransaction;
     });
+
+    // Trigger budget alert event if it's an expense
+    if (data.type === "EXPENSE") {
+      await inngest.send({
+        name: "transaction.updated",
+        data: {
+          ...transaction,
+          userId: user.id,
+        },
+      });
+    }
 
     revalidatePath("/dashboard");
     revalidatePath(`/account/${transaction.accountId}`);
@@ -192,6 +204,17 @@ export async function updateTransaction(id, data) {
       return updated;
     });
 
+    // Trigger budget alert event if it's an expense
+    if (data.type === "EXPENSE") {
+      await inngest.send({
+        name: "transaction.updated",
+        data: {
+          ...transaction,
+          userId: user.id,
+        },
+      });
+    }
+
     revalidatePath("/dashboard");
     revalidatePath(`/account/${data.accountId}`);
 
@@ -251,8 +274,10 @@ export async function scanReceipt(file) {
       - Description or items purchased (brief summary)
       - Merchant/store name
       - Suggested category (one of: housing,transportation,groceries,utilities,entertainment,food,shopping,healthcare,education,personal,travel,insurance,gifts,bills,other-expense )
+      choose the most appropriate category based on the description and merchant name but select one dont leave it blank .
       
       Only respond with valid JSON in this exact format:
+
       {
         "amount": number,
         "date": "ISO date string",
@@ -260,6 +285,7 @@ export async function scanReceipt(file) {
         "merchantName": "string",
         "category": "string"
       }
+        
 
       If its not a recipt, return an empty object
     `;
@@ -280,6 +306,7 @@ export async function scanReceipt(file) {
 
     try {
       const data = JSON.parse(cleanedText);
+      console.log(data);
       return {
         amount: parseFloat(data.amount),
         date: new Date(data.date),

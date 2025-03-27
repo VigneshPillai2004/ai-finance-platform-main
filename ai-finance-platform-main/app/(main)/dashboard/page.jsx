@@ -10,7 +10,7 @@ import { Plus } from "lucide-react";
 import { DashboardOverview } from "./_components/transaction-overview";
 
 export default async function DashboardPage() {
-  const [accounts, transactions] = await Promise.all([
+  const [accounts, dashboardData] = await Promise.all([
     getUserAccounts(),
     getDashboardData(),
   ]);
@@ -28,13 +28,14 @@ export default async function DashboardPage() {
       {/* Budget Progress */}
       <BudgetProgress
         initialBudget={budgetData?.budget}
-        currentExpenses={budgetData?.currentExpenses || 0}
+        currentExpenses={dashboardData.monthlyTotals.totalExpenses}
       />
 
       {/* Dashboard Overview */}
       <DashboardOverview
         accounts={accounts}
-        transactions={transactions || []}
+        transactions={dashboardData.transactions}
+        monthlyTotals={dashboardData.monthlyTotals}
       />
 
       {/* Accounts Grid */}

@@ -49,6 +49,7 @@ export function AddTransactionForm({
     setValue,
     getValues,
     reset,
+    control,
   } = useForm({
     resolver: zodResolver(transactionSchema),
     defaultValues:
@@ -70,6 +71,7 @@ export function AddTransactionForm({
             amount: "",
             description: "",
             accountId: accounts.find((ac) => ac.isDefault)?.id,
+            category: "",
             date: new Date(),
             isRecurring: false,
           },
@@ -96,13 +98,51 @@ export function AddTransactionForm({
 
   const handleScanComplete = (scannedData) => {
     if (scannedData) {
+      console.log("Scanned Data:", scannedData);
+      console.log("Available Categories:", categories);
+      
       setValue("amount", scannedData.amount.toString());
       setValue("date", new Date(scannedData.date));
       if (scannedData.description) {
         setValue("description", scannedData.description);
       }
       if (scannedData.category) {
-        setValue("category", scannedData.category);
+        // First try exact match
+        let matchingCategory = categories.find(
+          (cat) => cat.id === scannedData.category
+        );
+
+        // If no exact match, try case-insensitive match
+        if (!matchingCategory) {
+          matchingCategory = categories.find(
+            (cat) => cat.id.toLowerCase() === scannedData.category.toLowerCase()
+          );
+        }
+
+        // If still no match, try matching by name
+        if (!matchingCategory) {
+          matchingCategory = categories.find(
+            (cat) => cat.name.toLowerCase() === scannedData.category.toLowerCase()
+          );
+        }
+
+        console.log("Matching Category:", matchingCategory);
+
+        if (matchingCategory) {
+          // Set the category value
+          setValue("category", matchingCategory.id, {
+            shouldValidate: true,
+            shouldDirty: true,
+            shouldTouch: true,
+          });
+        } else {
+          // If no match found, set to "other-expense"
+          setValue("category", "other-expense", {
+            shouldValidate: true,
+            shouldDirty: true,
+            shouldTouch: true,
+          });
+        }
       }
       toast.success("Receipt scanned successfully");
     }
@@ -204,7 +244,7 @@ export function AddTransactionForm({
         <label className="text-sm font-medium">Category</label>
         <Select
           onValueChange={(value) => setValue("category", value)}
-          defaultValue={getValues("category")}
+          value={getValues("category")}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select category" />
