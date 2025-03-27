@@ -7,4 +7,5 @@ export const inngest = new Inngest({
     delay: Math.pow(2, attempt) * 1000, // Exponential backoff
     maxAttempts: 2,
   }),
+  eventKey: process.env.INNGEST_EVENT_KEY, // Add the event key from environment variables
 });
