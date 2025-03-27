@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { calculateTaxes } from "@/actions/tax";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { BarLoader } from "react-spinners";
 import {
   BarChart,
@@ -14,8 +14,10 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Info, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DeductionComparison } from "./deduction-comparison";
+import { Badge } from "@/components/ui/badge";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -64,8 +66,56 @@ export function TaxCalculator() {
     tax: month.tax,
   }));
 
+  // Format account type for display
+  const accountType = taxData.accountType ? taxData.accountType.toUpperCase() : 'UNKNOWN';
+  const accountBadgeColor = accountType === 'SAVINGS' ? 'bg-green-500' :
+                            accountType === 'CURRENT' ? 'bg-blue-500' : 'bg-gray-500';
+
   return (
     <div className="space-y-6">
+      {/* Account Type Information */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div>
+            <CardTitle className="text-lg">Account Type</CardTitle>
+            <CardDescription>
+              Tax rules vary based on account type
+            </CardDescription>
+          </div>
+          <Badge className={accountBadgeColor}>
+            {accountType}
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2 text-sm">
+            {accountType === 'CURRENT' ? (
+              <div className="flex gap-2 items-start">
+                <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                <p>
+                  Current accounts do not qualify for standard deduction. Only itemized deductions will be considered for tax purposes.
+                </p>
+              </div>
+            ) : accountType === 'SAVINGS' ? (
+              <div className="flex gap-2 items-start">
+                <Info className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <p>
+                  Savings accounts qualify for standard deduction under the New Regime. 
+                  For annual income up to ₹10,00,000, a standard deduction of ₹75,000 applies.
+                  Higher incomes have lower standard deductions.
+                </p>
+              </div>
+            ) : (
+              <div className="flex gap-2 items-start">
+                <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                <p>
+                  Unknown account type. Using default tax rules.
+                </p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -85,6 +135,9 @@ export function TaxCalculator() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${taxData.totalDeductions.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">
+              {taxData.deductionTypeUsed === "standard" ? "Standard" : "Itemized"}
+            </p>
           </CardContent>
         </Card>
 
@@ -111,6 +164,9 @@ export function TaxCalculator() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Deduction Comparison */}
+      <DeductionComparison deductionData={taxData.deductionComparison} accountType={accountType} />
 
       {/* Monthly Breakdown Chart */}
       <Card>
@@ -148,14 +204,20 @@ export function TaxCalculator() {
               <span className="text-muted-foreground">Tax Year</span>
               <span className="font-medium">{taxData.year}</span>
             </div>
+            
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Account Type</span>
+              <span className="font-medium">{accountType}</span>
+            </div>
+            
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Standard Deduction</span>
-              <span className="font-medium">$13,850</span>
+              <span className="font-medium">${taxData.standardDeduction.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Itemized Deductions</span>
               <span className="font-medium">
-                ${(taxData.totalExpenses * 0.3).toFixed(2)}
+                ${taxData.itemizedDeductions.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between items-center">
