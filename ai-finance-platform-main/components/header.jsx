@@ -5,7 +5,7 @@ import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 import { checkUser } from "@/lib/checkUser";
 import Image from "next/image";
-
+import { PdfScanner } from "@/app/(main)/transaction/_components/pdf-scanner";
 const Header = async () => {
   try {
     await checkUser();
@@ -71,6 +71,7 @@ const Header = async () => {
                 <span className="hidden md:inline">Tax</span>
               </Button>
             </Link>
+            <PdfScanner />
             <a href="/transaction/create">
               <Button className="flex items-center gap-2">
                 <PenBox size={18} />
