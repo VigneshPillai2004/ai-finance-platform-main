@@ -8,31 +8,33 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { TaxCalculator } from "./_components/tax-calculator";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 export default function TaxPage() {
   const [taxData, setTaxData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [taxRegime, setTaxRegime] = useState("new");
+
+  const fetchTaxData = async (regime) => {
+    try {
+      setLoading(true);
+      const result = await calculateTaxes(regime);
+      if (result.success) {
+        setTaxData(result.data);
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchTaxData = async () => {
-      try {
-        setLoading(true);
-        const result = await calculateTaxes();
-        if (result.success) {
-          setTaxData(result.data);
-        } else {
-          setError(result.error);
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTaxData();
-  }, []);
+    fetchTaxData(taxRegime);
+  }, [taxRegime]);
 
   if (loading) {
     return (
@@ -46,7 +48,7 @@ export default function TaxPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <p className="text-red-500 mb-4">{error}</p>
-        <Button onClick={() => window.location.reload()}>Retry</Button>
+        <Button onClick={() => fetchTaxData(taxRegime)}>Retry</Button>
       </div>
     );
   }
@@ -66,6 +68,37 @@ export default function TaxPage() {
           Tax Calculator
         </h1>
       </div>
+
+      {/* Tax Regime Selector */}
+      <Card className="p-6 mb-8">
+        <h2 className="text-xl font-semibold mb-4">Tax Regime</h2>
+        <div className="flex flex-col space-y-4">
+          <RadioGroup
+            value={taxRegime}
+            onValueChange={setTaxRegime}
+            className="flex flex-col space-y-2"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="new" id="new" />
+              <Label htmlFor="new" className="flex flex-col">
+                <span className="font-medium">New Tax Regime</span>
+                <span className="text-sm text-gray-600">
+                  Lower tax rates but no major deductions (except ₹75,000 standard deduction)
+                </span>
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="old" id="old" />
+              <Label htmlFor="old" className="flex flex-col">
+                <span className="font-medium">Old Tax Regime</span>
+                <span className="text-sm text-gray-600">
+                  Higher tax rates but with full deductions (₹50,000 standard deduction + other deductions)
+                </span>
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
+      </Card>
 
       {/* Account Type Info */}
       <Card className="p-6 mb-8">
@@ -132,11 +165,17 @@ export default function TaxPage() {
             <p className="text-2xl font-bold text-blue-600">
               ₹{taxData.deductionComparison.standard.amount.toLocaleString('en-IN')}
             </p>
+            <p className="text-sm text-gray-600 mt-1">
+              {taxData.deductionComparison.standard.description}
+            </p>
           </div>
           <div>
             <h3 className="text-lg font-medium mb-2">Itemized Deductions</h3>
             <p className="text-2xl font-bold text-green-600">
               ₹{taxData.deductionComparison.itemized.amount.toLocaleString('en-IN')}
+            </p>
+            <p className="text-sm text-gray-600 mt-1">
+              {taxData.deductionComparison.itemized.description}
             </p>
             {taxData.deductionComparison.itemized.breakdown && (
               <div className="mt-2">

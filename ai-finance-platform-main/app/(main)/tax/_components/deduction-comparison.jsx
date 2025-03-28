@@ -114,7 +114,7 @@ export function DeductionComparison({ deductionData, accountType }) {
                   {standardDeductionInfo}
                 </p>
               </div>
-              <div className="font-bold">${standard.amount.toFixed(2)}</div>
+              <div className="font-bold">₹{standard.amount.toLocaleString('en-IN')}</div>
             </div>
 
             <Progress 
@@ -131,7 +131,7 @@ export function DeductionComparison({ deductionData, accountType }) {
                   Based on your eligible expenses
                 </p>
               </div>
-              <div className="font-bold">${itemized.amount.toFixed(2)}</div>
+              <div className="font-bold">₹{itemized.amount.toLocaleString('en-IN')}</div>
             </div>
 
             <Alert className={
@@ -147,10 +147,10 @@ export function DeductionComparison({ deductionData, accountType }) {
                 {standard.amount > itemized.amount 
                   ? accountType === 'CURRENT'
                     ? "Although current accounts typically don't qualify for standard deduction, your specific situation allows it."
-                    : `Your standard deduction ($${standard.amount.toFixed(2)}) is higher than your itemized deductions ($${itemized.amount.toFixed(2)}).`
+                    : `Your standard deduction (₹${standard.amount.toLocaleString('en-IN')}) is higher than your itemized deductions (₹${itemized.amount.toLocaleString('en-IN')}).`
                   : accountType === 'CURRENT'
-                    ? "Current accounts use itemized deductions, which is $" + deductionDifference.toFixed(2) + " more beneficial."
-                    : `Your itemized deductions ($${itemized.amount.toFixed(2)}) are higher than your standard deduction ($${standard.amount.toFixed(2)}) by $${deductionDifference.toFixed(2)}.`
+                    ? "Current accounts use itemized deductions, which is ₹" + deductionDifference.toLocaleString('en-IN') + " more beneficial."
+                    : `Your itemized deductions (₹${itemized.amount.toLocaleString('en-IN')}) are higher than your standard deduction (₹${standard.amount.toLocaleString('en-IN')}) by ₹${deductionDifference.toLocaleString('en-IN')}.`
                 }
               </AlertDescription>
             </Alert>
@@ -178,7 +178,7 @@ export function DeductionComparison({ deductionData, accountType }) {
                       <TableCell className="font-medium">
                         {formatDeductionCategory(category)}
                       </TableCell>
-                      <TableCell className="text-right">${amount.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">₹{amount.toLocaleString('en-IN')}</TableCell>
                     </TableRow>
                   ))
                 ) : (
@@ -191,7 +191,7 @@ export function DeductionComparison({ deductionData, accountType }) {
                 {itemized.breakdown && Object.entries(itemized.breakdown).length > 0 && (
                   <TableRow>
                     <TableCell className="font-medium">Total</TableCell>
-                    <TableCell className="text-right font-medium">${itemized.amount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-medium">₹{itemized.amount.toLocaleString('en-IN')}</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -223,8 +223,8 @@ export function DeductionComparison({ deductionData, accountType }) {
                       <TableCell>{transaction.category}</TableCell>
                       <TableCell className="max-w-[150px] truncate">{transaction.description}</TableCell>
                       <TableCell>{transaction.deductionCategory ? formatDeductionCategory(transaction.deductionCategory) : 'Not Deductible'}</TableCell>
-                      <TableCell className="text-right">${Math.abs(transaction.amount).toFixed(2)}</TableCell>
-                      <TableCell className="text-right">${transaction.deductibleAmount?.toFixed(2) || '0.00'}</TableCell>
+                      <TableCell className="text-right">₹{Math.abs(transaction.amount).toLocaleString('en-IN')}</TableCell>
+                      <TableCell className="text-right">₹{transaction.deductibleAmount?.toLocaleString('en-IN') || '0.00'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -248,7 +248,7 @@ export function DeductionComparison({ deductionData, accountType }) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Category Mapping</TableHead>
+                    <TableHead>Category</TableHead>
                     <TableHead className="text-center">Count</TableHead>
                     <TableHead className="text-right">Total Amount</TableHead>
                     <TableHead className="text-right">Deductible Amount</TableHead>
@@ -256,17 +256,17 @@ export function DeductionComparison({ deductionData, accountType }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Object.entries(categorySummary).map(([mapping, data]) => (
-                    <TableRow key={mapping}>
+                  {Object.entries(categorySummary).map(([category, data]) => (
+                    <TableRow key={category}>
                       <TableCell>
-                        <div className="font-medium">{data.displayMapping}</div>
+                        <div className="font-medium">{formatDeductionCategory(category)}</div>
                         <div className="text-xs text-muted-foreground">
-                          {data.originalCategories.join(", ")}
+                          {formatDeductionCategory(data.deductionCategory)}
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">{data.count}</TableCell>
-                      <TableCell className="text-right">${data.totalAmount.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">${data.deductibleAmount.toFixed(2)}</TableCell>
+                      <TableCell className="text-center">{data.transactionCount}</TableCell>
+                      <TableCell className="text-right">₹{data.totalAmount.toLocaleString('en-IN')}</TableCell>
+                      <TableCell className="text-right">₹{data.deductibleAmount.toLocaleString('en-IN')}</TableCell>
                       <TableCell className="text-right">{(data.deductionRate * 100).toFixed(0)}%</TableCell>
                     </TableRow>
                   ))}

@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/prisma";
 
 // Tax brackets for Indian tax regime (2023-24)
-const TAX_BRACKETS = {
+const NEW_TAX_BRACKETS = {
   "2023": [
     { threshold: 300000, rate: 0.0 },    // No tax up to 3L
     { threshold: 600000, rate: 0.05 },   // 5% from 3L to 6L
@@ -28,6 +28,27 @@ const TAX_BRACKETS = {
     { threshold: 1200000, rate: 0.15 },  // 15% from 9L to 12L
     { threshold: 1500000, rate: 0.20 },  // 20% from 12L to 15L
     { threshold: null, rate: 0.30 },      // 30% above 15L
+  ]
+};
+
+const OLD_TAX_BRACKETS = {
+  "2023": [
+    { threshold: 250000, rate: 0.0 },    // No tax up to 2.5L
+    { threshold: 500000, rate: 0.05 },   // 5% from 2.5L to 5L
+    { threshold: 1000000, rate: 0.20 },  // 20% from 5L to 10L
+    { threshold: null, rate: 0.30 },      // 30% above 10L
+  ],
+  "2024": [
+    { threshold: 250000, rate: 0.0 },    // No tax up to 2.5L
+    { threshold: 500000, rate: 0.05 },   // 5% from 2.5L to 5L
+    { threshold: 1000000, rate: 0.20 },  // 20% from 5L to 10L
+    { threshold: null, rate: 0.30 },      // 30% above 10L
+  ],
+  "default": [
+    { threshold: 250000, rate: 0.0 },    // No tax up to 2.5L
+    { threshold: 500000, rate: 0.05 },   // 5% from 2.5L to 5L
+    { threshold: 1000000, rate: 0.20 },  // 20% from 5L to 10L
+    { threshold: null, rate: 0.30 },      // 30% above 10L
   ]
 };
 
@@ -254,292 +275,220 @@ function getStandardDeduction(accountType, totalIncome) {
   return 13850;  // Default US standard deduction
 }
 
-export async function calculateTaxes() {
+export async function calculateTaxes(taxRegime = "new") {
   try {
     const { userId } = await auth();
-    
     if (!userId) {
       return { success: false, error: "Not authenticated" };
     }
-    
-    console.log("Calculating taxes for user:", userId);
-    
-    // Find the user using the clerk user ID
+
+    // Fetch user from DB
     const user = await db.user.findUnique({
-      where: { clerkUserId: userId }
+      where: { clerkUserId: userId },
     });
-    
+
     if (!user) {
       return { success: false, error: "User not found" };
     }
-    
-    // Get user's accounts to determine account type
-    const userAccounts = await db.account.findMany({
-      where: { userId: user.id }
+
+    // Fetch user's accounts
+    const accounts = await db.account.findMany({
+      where: { userId: user.id },
     });
-    
-    console.log("User accounts:", JSON.stringify(userAccounts, null, 2));
-    
-    // Determine the account type - default to the primary account or first account
-    let accountType = "SAVINGS"; // Default fallback
-    if (userAccounts.length > 0) {
-      const primaryAccount = userAccounts.find(acc => acc.isDefault) || userAccounts[0];
-      accountType = primaryAccount.type;
+
+    if (!accounts || accounts.length === 0) {
+      return { success: false, error: "No accounts found" };
     }
-    
-    console.log("Using account type:", accountType);
-    
-    // For current accounts, we always use itemized deductions
-    const useItemizedDeductions = accountType.toUpperCase() === 'CURRENT';
-    
-    // Get standard deduction based on account type
-    const year = new Date().getFullYear();
-    
-    // Get transactions for the year
+
+    // Determine account type
+    const defaultAccount = accounts.find(acc => acc.isDefault) || accounts[0];
+    const accountType = defaultAccount.type || "SAVINGS";
+
+    // Fetch transactions for the current year
+    const currentYear = new Date().getFullYear();
     const transactions = await db.transaction.findMany({
       where: {
         userId: user.id,
+        accountId: defaultAccount.id,
         date: {
-          gte: new Date(`${year}-01-01`),
-          lte: new Date(`${year}-12-31`),
+          gte: new Date(currentYear, 0, 1),
+          lte: new Date(currentYear, 11, 31),
         },
       },
-      select: {
-        id: true,
-        type: true,
-        category: true,
-        amount: true,
-        description: true,
-        date: true,
+      orderBy: {
+        date: "asc",
       },
     });
-    
-    console.log(`Retrieved ${transactions.length} transactions`);
-    
-    // Log raw transaction data for debugging
-    console.log("Raw Transactions:", JSON.stringify(transactions.slice(0, 10), null, 2));
-    
-    // Make sure amount values are processed as numbers
+
+    // Process transactions
     const processedTransactions = transactions.map(t => ({
       ...t,
-      amount: Number(t.amount) * (t.type === 'EXPENSE' ? -1 : 1) // Convert expenses to negative numbers
+      amount: t.type === "EXPENSE" ? -t.amount : t.amount
     }));
-    
-    if (processedTransactions.length === 0) {
-      return {
-        success: true,
-        data: generateDemoTaxData(accountType),
-      };
-    }
-    
-    // Calculate total income
-    const incomeTransactions = processedTransactions.filter(t => t.amount > 0);
-    const totalIncome = incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
-    
-    // Calculate standard deduction based on account type and income
-    const standardDeduction = getStandardDeduction(accountType, totalIncome);
 
-    // Get expense categories and their deduction mapping
-    const expenseTransactions = processedTransactions.filter(t => t.amount < 0);
-    const totalExpenses = Math.abs(expenseTransactions.reduce((sum, t) => sum + t.amount, 0));
-    
-    // Track unique expense categories for debugging
-    const uniqueCategories = new Set();
-    expenseTransactions.forEach(t => uniqueCategories.add(t.category));
-    console.log("Unique expense categories:", Array.from(uniqueCategories));
-    
+    // Calculate total income and expenses
+    const totalIncome = processedTransactions
+      .filter(t => t.amount > 0)
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalExpenses = processedTransactions
+      .filter(t => t.amount < 0)
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    // Get standard deduction based on tax regime and account type
+    const standardDeduction = accountType.toUpperCase() === "CURRENT" ? 0 : (taxRegime === "new" ? 75000 : 50000);
+
     // Calculate itemized deductions
+    const expenseTransactions = processedTransactions.filter(t => t.amount < 0);
     let itemizedDeductions = 0;
     const itemizedBreakdown = {};
-    const categorySummary = {};
     const transactionsWithDeductions = [];
-    
-    // Process each expense transaction with updated deduction rules
+
+    // Process each expense transaction
     expenseTransactions.forEach(transaction => {
-      const { category, amount } = transaction;
-      const absAmount = Math.abs(amount);
-      
-      // Find deduction category using our mapping
-      let deductionCategory = null;
+      const category = transaction.category.toLowerCase();
+      const amount = Math.abs(transaction.amount);
+
+      // Find matching deduction category
+      let deductionCategory = "other";
       let deductionRate = 0;
-      
-      // Try to find an exact match first (case-insensitive)
+
       for (const [key, value] of Object.entries(DEDUCTION_CATEGORY_MAPPING)) {
-        const categoryLower = (category || '').toLowerCase();
-        const keyLower = key.toLowerCase();
-        
-        if (
-          // Try exact match first
-          key === category || 
-          // Try case insensitive match
-          keyLower === categoryLower ||
-          // Try finding by name match - look for substrings
-          keyLower.includes(categoryLower) || categoryLower.includes(keyLower)
-        ) {
+        if (category.includes(key.toLowerCase())) {
           deductionCategory = value.category;
           deductionRate = value.rate;
           break;
         }
       }
-      
-      // If still no match and it's a current account, check if it's a personal expense
-      if (!deductionCategory && category && useItemizedDeductions) {
-        // List of personal expense keywords
-        const personalExpenseKeywords = [
-          'groceries', 'grocery', 'food', 'meals', 'dining', 'restaurant',
-          'entertainment', 'shopping', 'personal', 'other'
-        ];
-        
-        const categoryLower = (category || '').toLowerCase();
-        const isPersonalExpense = personalExpenseKeywords.some(keyword => 
-          categoryLower.includes(keyword)
-        );
-        
-        if (isPersonalExpense) {
-          deductionCategory = "non-deductible";
-          deductionRate = 0.0;
-        } else {
-          deductionCategory = DEDUCTION_CATEGORY_MAPPING["other"].category;
-          deductionRate = DEDUCTION_CATEGORY_MAPPING["other"].rate;
-        }
-      }
-      
+
       // Calculate deductible amount
-      const deductibleAmount = deductionRate > 0 ? absAmount * deductionRate : 0;
-      
-      // Add to itemized deductions only if it's deductible
-      if (deductibleAmount > 0) {
-        itemizedDeductions += deductibleAmount;
-        
-        // Add to category breakdown
-        if (!itemizedBreakdown[deductionCategory]) {
-          itemizedBreakdown[deductionCategory] = 0;
-        }
-        itemizedBreakdown[deductionCategory] += deductibleAmount;
-        
-        // Add to category summary
-        const summaryKey = `${category}-to-${deductionCategory}`;
-        if (!categorySummary[summaryKey]) {
-          categorySummary[summaryKey] = {
-            originalCategories: [category],
-            displayMapping: `${category} → ${formatDeductionCategory(deductionCategory)}`,
-            count: 0,
-            totalAmount: 0,
-            deductibleAmount: 0,
-            deductionRate: deductionRate
-          };
-        } else if (!categorySummary[summaryKey].originalCategories.includes(category)) {
-          categorySummary[summaryKey].originalCategories.push(category);
-        }
-        
-        categorySummary[summaryKey].count++;
-        categorySummary[summaryKey].totalAmount += absAmount;
-        categorySummary[summaryKey].deductibleAmount += deductibleAmount;
+      const deductibleAmount = amount * deductionRate;
+      itemizedDeductions += deductibleAmount;
+
+      // Update breakdown
+      if (!itemizedBreakdown[deductionCategory]) {
+        itemizedBreakdown[deductionCategory] = 0;
       }
-      
-      // Add transaction with deduction info
+      itemizedBreakdown[deductionCategory] += deductibleAmount;
+
+      // Add to transactions with deductions
       transactionsWithDeductions.push({
         ...transaction,
-        deductionCategory: deductionCategory,
-        deductibleAmount: deductibleAmount,
-        deductionRate: deductionRate
+        deductionCategory,
+        deductibleAmount,
+        deductionRate
       });
     });
-    
-    // Determine which deduction type to use
-    let deductionTypeUsed = accountType === "CURRENT" ? "itemized" : 
-                           (itemizedDeductions > standardDeduction ? "itemized" : "standard");
-    const totalDeductions = deductionTypeUsed === "standard" ? standardDeduction : itemizedDeductions;
-    
-    // Calculate taxable income and tax owed
+
+    // Create category summary
+    const categorySummary = {};
+    transactionsWithDeductions.forEach(transaction => {
+      const category = transaction.category;
+      if (!categorySummary[category]) {
+        categorySummary[category] = {
+          totalAmount: 0,
+          deductibleAmount: 0,
+          transactionCount: 0,
+          deductionRate: transaction.deductionRate,
+          deductionCategory: transaction.deductionCategory
+        };
+      }
+      categorySummary[category].totalAmount += Math.abs(transaction.amount);
+      categorySummary[category].deductibleAmount += transaction.deductibleAmount;
+      categorySummary[category].transactionCount += 1;
+    });
+
+    // For current accounts, always use itemized deductions
+    const deductionTypeUsed = accountType.toUpperCase() === "CURRENT" ? "itemized" : 
+                             (itemizedDeductions > standardDeduction ? "itemized" : "standard");
+    const totalDeductions = deductionTypeUsed === "itemized" ? itemizedDeductions : standardDeduction;
+
+    // Calculate taxable income
     const taxableIncome = Math.max(0, totalIncome - totalDeductions);
-    
-    // Select appropriate tax brackets based on account type
-    const taxBrackets = accountType === "CURRENT" ? 
-                       (BUSINESS_TAX_BRACKETS[year] || BUSINESS_TAX_BRACKETS["default"]) :
-                       (TAX_BRACKETS[year] || TAX_BRACKETS["default"]);
-    
+
+    // Get tax brackets based on regime
+    const taxBrackets = accountType.toUpperCase() === "CURRENT" 
+      ? (BUSINESS_TAX_BRACKETS[currentYear] || BUSINESS_TAX_BRACKETS["default"])
+      : (taxRegime === "new" 
+          ? (NEW_TAX_BRACKETS[currentYear] || NEW_TAX_BRACKETS["default"])
+          : (OLD_TAX_BRACKETS[currentYear] || OLD_TAX_BRACKETS["default"]));
+
+    // Calculate tax
     let taxOwed = 0;
     let prevThreshold = 0;
-    
-    // Apply tax brackets to calculate tax owed
-    for (const bracket of taxBrackets) {
-      if (taxableIncome > prevThreshold) {
-        const incomeInBracket = Math.min(taxableIncome, bracket.threshold || Infinity) - prevThreshold;
-        taxOwed += incomeInBracket * bracket.rate;
-        prevThreshold = bracket.threshold || Infinity;
-        
-        if (bracket.threshold === null || taxableIncome <= bracket.threshold) {
-          break;
+
+    // Ensure taxBrackets is an array before iterating
+    if (Array.isArray(taxBrackets)) {
+      for (const bracket of taxBrackets) {
+        if (taxableIncome > prevThreshold) {
+          const incomeInBracket = Math.min(taxableIncome, bracket.threshold || Infinity) - prevThreshold;
+          taxOwed += incomeInBracket * bracket.rate;
+          prevThreshold = bracket.threshold || Infinity;
+
+          if (bracket.threshold === null || taxableIncome <= bracket.threshold) {
+            break;
+          }
         }
       }
+    } else {
+      console.error("Invalid tax brackets format:", taxBrackets);
+      return {
+        success: false,
+        error: "Invalid tax brackets configuration"
+      };
     }
-    
-    // Apply surcharge for business income above thresholds
-    let surcharge = 0;
-    if (accountType === "CURRENT") {
-      if (taxableIncome > 10000000) {  // Above 1 crore
-        surcharge = taxOwed * 0.15;    // 15% surcharge
-      } else if (taxableIncome > 5000000) {  // Above 50 lakhs
-        surcharge = taxOwed * 0.10;    // 10% surcharge
-      }
-    }
-    
-    // Add surcharge to tax
-    taxOwed += surcharge;
-    
-    // Add 4% health and education cess
-    const cess = taxOwed * 0.04;
-    taxOwed += cess;
-    
+
     // Calculate effective tax rate
-    const effectiveTaxRate = totalIncome > 0 ? ((taxOwed / totalIncome) * 100).toFixed(1) : 0;
-    
+    const effectiveTaxRate = totalIncome > 0 ? (taxOwed / totalIncome) * 100 : 0;
+
     // Calculate monthly breakdown
     const monthlyBreakdown = calculateMonthlyBreakdown(processedTransactions, totalDeductions, taxBrackets);
-    
-    // Prepare data for comparison visualization
+
+    // Prepare deduction comparison
     const deductionComparison = {
       standard: {
         amount: standardDeduction,
-        label: "Standard Deduction",
+        description: accountType.toUpperCase() === "CURRENT" 
+          ? "Current accounts do not qualify for standard deduction"
+          : "Standard deduction based on tax regime"
       },
       itemized: {
         amount: itemizedDeductions,
-        label: "Itemized Deductions",
         breakdown: itemizedBreakdown,
+        description: "Itemized deductions based on expense categories"
       },
-      difference: Math.abs(standardDeduction - itemizedDeductions),
-      savings: Math.max(0, itemizedDeductions - standardDeduction),
-      mappingDetails: DEDUCTION_CATEGORY_MAPPING,
+      difference: Math.abs(itemizedDeductions - standardDeduction),
+      savings: Math.max(itemizedDeductions, standardDeduction) - Math.min(itemizedDeductions, standardDeduction),
       transactions: transactionsWithDeductions,
-      categorySummary,
+      categorySummary
     };
-    
+
     return {
       success: true,
       data: {
-        year,
+        year: currentYear,
         accountType,
         totalIncome,
         totalExpenses,
-        standardDeduction,
-        itemizedDeductions,
-        deductionTypeUsed,
         totalDeductions,
+        deductionTypeUsed,
         taxableIncome,
         taxOwed,
-        effectiveTaxRate,
+        effectiveTaxRate: effectiveTaxRate.toFixed(2),
         monthlyBreakdown,
         deductionComparison,
         transactionCount: processedTransactions.length,
-      },
+        taxRegime,
+        transactions: transactionsWithDeductions,
+        categorySummary
+      }
     };
+
   } catch (error) {
     console.error("Error calculating taxes:", error);
     return {
       success: false,
-      error: error.message,
+      error: error.message || "Failed to calculate taxes"
     };
   }
 }

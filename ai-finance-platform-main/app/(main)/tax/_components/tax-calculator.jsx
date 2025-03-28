@@ -71,6 +71,10 @@ export function TaxCalculator() {
   const accountBadgeColor = accountType === 'SAVINGS' ? 'bg-green-500' :
                             accountType === 'CURRENT' ? 'bg-blue-500' : 'bg-gray-500';
 
+  // Format tax regime for display
+  const taxRegime = taxData.taxRegime === 'new' ? 'New Tax Regime' : 'Old Tax Regime';
+  const regimeBadgeColor = taxData.taxRegime === 'new' ? 'bg-blue-500' : 'bg-purple-500';
+
   return (
     <div className="space-y-6">
       {/* Account Type Information */}
@@ -124,7 +128,7 @@ export function TaxCalculator() {
             <ArrowUpRight className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${taxData.totalIncome.toFixed(2)}</div>
+            <div className="text-2xl font-bold">₹{taxData.totalIncome.toLocaleString('en-IN')}</div>
           </CardContent>
         </Card>
 
@@ -134,7 +138,7 @@ export function TaxCalculator() {
             <ArrowDownRight className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${taxData.totalDeductions.toFixed(2)}</div>
+            <div className="text-2xl font-bold">₹{taxData.totalDeductions.toLocaleString('en-IN')}</div>
             <p className="text-xs text-muted-foreground">
               {taxData.deductionTypeUsed === "standard" ? "Standard" : "Itemized"}
             </p>
@@ -147,7 +151,7 @@ export function TaxCalculator() {
             <ArrowUpRight className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${taxData.taxableIncome.toFixed(2)}</div>
+            <div className="text-2xl font-bold">₹{taxData.taxableIncome.toLocaleString('en-IN')}</div>
           </CardContent>
         </Card>
 
@@ -157,7 +161,7 @@ export function TaxCalculator() {
             <ArrowDownRight className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${taxData.taxOwed.toFixed(2)}</div>
+            <div className="text-2xl font-bold">₹{taxData.taxOwed.toLocaleString('en-IN')}</div>
             <p className="text-xs text-muted-foreground">
               Effective Rate: {taxData.effectiveTaxRate}%
             </p>
@@ -166,7 +170,10 @@ export function TaxCalculator() {
       </div>
 
       {/* Deduction Comparison */}
-      <DeductionComparison deductionData={taxData.deductionComparison} accountType={accountType} />
+      <DeductionComparison 
+        deductionData={taxData.deductionComparison} 
+        accountType={taxData.accountType}
+      />
 
       {/* Monthly Breakdown Chart */}
       <Card>
@@ -194,7 +201,7 @@ export function TaxCalculator() {
       </Card>
 
       {/* Tax Information */}
-      <Card>
+      <Card className="col-span-full">
         <CardHeader>
           <CardTitle>Tax Information</CardTitle>
         </CardHeader>
@@ -207,22 +214,27 @@ export function TaxCalculator() {
             
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Account Type</span>
-              <span className="font-medium">{accountType}</span>
+              <Badge className={cn("ml-2", accountBadgeColor)}>{accountType}</Badge>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Tax Regime</span>
+              <Badge className={cn("ml-2", regimeBadgeColor)}>{taxRegime}</Badge>
             </div>
             
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Standard Deduction</span>
-              <span className="font-medium">${taxData.standardDeduction.toFixed(2)}</span>
+              <span className="font-medium">₹{taxData.deductionComparison.standard.amount.toLocaleString('en-IN')}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Itemized Deductions</span>
               <span className="font-medium">
-                ${taxData.itemizedDeductions.toFixed(2)}
+                ₹{taxData.deductionComparison.itemized.amount.toLocaleString('en-IN')}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Total Expenses</span>
-              <span className="font-medium">${taxData.totalExpenses.toFixed(2)}</span>
+              <span className="font-medium">₹{taxData.totalExpenses.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </CardContent>
