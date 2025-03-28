@@ -1,0 +1,1 @@
+₹{parseFloat(balance).toFixed(2)} 

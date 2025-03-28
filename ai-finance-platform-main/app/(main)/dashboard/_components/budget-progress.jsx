@@ -102,7 +102,7 @@ export function BudgetProgress({ initialBudget, currentExpenses }) {
             ) : (
               <>
                 <span className="text-2xl font-bold text-foreground">
-                  ${initialBudget?.amount?.toFixed(2) || "0.00"}
+                ₹{initialBudget?.amount?.toFixed(2) || "0.00"}
                 </span>
                 <Button
                   variant="ghost"
@@ -119,7 +119,7 @@ export function BudgetProgress({ initialBudget, currentExpenses }) {
       <CardContent>
         <div className="space-y-2">
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span>Spent: ${currentExpenses?.toFixed(2) || "0.00"}</span>
+            <span>Spent: ₹{currentExpenses?.toFixed(2) || "0.00"}</span>
             <span>{percentUsed.toFixed(1)}%</span>
           </div>
           <Progress value={percentUsed} className="h-2" />

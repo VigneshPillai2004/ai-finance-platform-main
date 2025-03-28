@@ -113,7 +113,7 @@ export function DashboardOverview({ accounts, transactions, monthlyTotals }) {
                       ) : (
                         <ArrowUpRight className="mr-1 h-4 w-4" />
                       )}
-                      ${transaction.amount.toFixed(2)}
+                      {transaction.type === "EXPENSE" ? "-" : "+"}₹{transaction.amount.toFixed(2)}
                     </div>
                   </div>
                 </div>
@@ -138,7 +138,7 @@ export function DashboardOverview({ accounts, transactions, monthlyTotals }) {
                 <span>Income</span>
               </div>
               <span className="font-medium">
-                ${monthlyTotals.totalIncome.toFixed(2)}
+                ₹{monthlyTotals.totalIncome.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -147,7 +147,7 @@ export function DashboardOverview({ accounts, transactions, monthlyTotals }) {
                 <span>Expenses</span>
               </div>
               <span className="font-medium">
-                ${monthlyTotals.totalExpenses.toFixed(2)}
+                ₹{monthlyTotals.totalExpenses.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between items-center pt-2 border-t">
@@ -158,7 +158,7 @@ export function DashboardOverview({ accounts, transactions, monthlyTotals }) {
                   ? "text-green-500"
                   : "text-red-500"
               )}>
-                ${(monthlyTotals.totalIncome - monthlyTotals.totalExpenses).toFixed(2)}
+                ₹{(monthlyTotals.totalIncome - monthlyTotals.totalExpenses).toFixed(2)}
               </span>
             </div>
           </div>
@@ -188,7 +188,7 @@ export function DashboardOverview({ accounts, transactions, monthlyTotals }) {
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
-                    label={({ name, value }) => `${name}: $${value.toFixed(2)}`}
+                    label={({ name, value }) => `${name}: ₹${value.toFixed(2)}`}
                   >
                     {pieChartData.map((entry, index) => (
                       <Cell
@@ -198,7 +198,7 @@ export function DashboardOverview({ accounts, transactions, monthlyTotals }) {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value) => `$${value.toFixed(2)}`}
+                    formatter={(value) => `₹${value.toFixed(2)}`}
                     contentStyle={{
                       backgroundColor: "hsl(var(--popover))",
                       border: "1px solid hsl(var(--border))",
